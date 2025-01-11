@@ -17,6 +17,15 @@ pub struct PaletteData {
 }
 
 impl PaletteData {
+    pub fn default() -> PaletteData {
+        PaletteData {
+            color_0: 0,
+            color_1: 0,
+            color_2: 0,
+            color_3: 0,
+        }
+    }
+
     pub fn get_color(&self, color: u8) -> u8 {
         match color {
             0 => self.color_0,

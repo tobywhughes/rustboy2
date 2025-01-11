@@ -10,15 +10,12 @@ use crate::{
 
 use super::cpu::CPU;
 
-type ProcessedTile = [[u8; 8]; 8];
-type ProcessedTiles = [[ProcessedTile; 32]; 32];
 pub struct Bus {
     cartridge: Cartridge,
     pub cpu: CPU,
     wram: WRam,
     pub io: IO,
     hram: HRam,
-    render_cycles: u32,
     pub ppu: PPU,
 }
 
@@ -30,7 +27,6 @@ impl Bus {
             wram: WRam::default(),
             hram: HRam::default(),
             io: IO::default(),
-            render_cycles: 0,
             ppu: PPU::new(),
         }
     }
@@ -150,8 +146,6 @@ impl Bus {
             }
             self.io.oam.dma_transfer = false;
         }
-
-        self.render_cycles += self.cpu.cycle_buffer as u32;
 
         let scanline_event: ScanLineEvent = self
             .io
