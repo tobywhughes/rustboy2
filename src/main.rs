@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, time::Instant};
 
 mod bus;
 mod cartridge;
@@ -45,25 +45,75 @@ async fn main() {
 
     let mut bus = Bus::new(rom_filename);
 
-    let mut tile_textures: [[Texture2D; 32]; 32] = core::array::from_fn(|_| {
-        core::array::from_fn(|_| Texture2D::from_rgba8(8, 8, &[0; 8 * 8 * 4]))
-    });
-
     let mut frame_counter: u32 = 0;
     let mut fps_display = String::new();
-    let DISPLAY_FPS = true;
+    let DISPLAY_FPS = false;
+
+    let mut instant_time = Instant::now();
 
     while !is_key_down(KeyCode::Escape) {
+        get_input(&mut bus);
         frame_counter = frame_counter.wrapping_add(1);
         let should_update_frame = bus.run_cycle();
 
         if should_update_frame {
+            draw_macroquad_frame(bus.ppu.frame_buffer);
             draw_fps(DISPLAY_FPS, frame_counter, &mut fps_display);
 
-            draw_macroquad_frame(bus.ppu.frame_buffer);
-
             next_frame().await;
+            instant_time = limit_60_fps(instant_time);
         }
+    }
+}
+
+fn get_input(bus: &mut Bus) {
+    if is_key_pressed(KeyCode::Right) {
+        bus.io.joypad.joypad_buttons.set_right(true);
+    }
+    if is_key_released(KeyCode::Right) {
+        bus.io.joypad.joypad_buttons.set_right(false);
+    }
+    if is_key_pressed(KeyCode::Left) {
+        bus.io.joypad.joypad_buttons.set_left(true);
+    }
+    if is_key_released(KeyCode::Left) {
+        bus.io.joypad.joypad_buttons.set_left(false);
+    }
+    if is_key_pressed(KeyCode::Up) {
+        bus.io.joypad.joypad_buttons.set_up(true);
+    }
+    if is_key_released(KeyCode::Up) {
+        bus.io.joypad.joypad_buttons.set_up(false);
+    }
+    if is_key_pressed(KeyCode::Down) {
+        bus.io.joypad.joypad_buttons.set_down(true);
+    }
+    if is_key_released(KeyCode::Down) {
+        bus.io.joypad.joypad_buttons.set_down(false);
+    }
+    if is_key_pressed(KeyCode::Z) {
+        bus.io.joypad.joypad_buttons.set_a(true);
+    }
+    if is_key_released(KeyCode::Z) {
+        bus.io.joypad.joypad_buttons.set_a(false);
+    }
+    if is_key_pressed(KeyCode::X) {
+        bus.io.joypad.joypad_buttons.set_b(true);
+    }
+    if is_key_released(KeyCode::X) {
+        bus.io.joypad.joypad_buttons.set_b(false);
+    }
+    if is_key_pressed(KeyCode::Space) {
+        bus.io.joypad.joypad_buttons.set_start(true);
+    }
+    if is_key_released(KeyCode::Space) {
+        bus.io.joypad.joypad_buttons.set_start(false);
+    }
+    if is_key_pressed(KeyCode::LeftShift) {
+        bus.io.joypad.joypad_buttons.set_select(true);
+    }
+    if is_key_released(KeyCode::LeftShift) {
+        bus.io.joypad.joypad_buttons.set_select(false);
     }
 }
 
@@ -106,94 +156,11 @@ fn draw_macroquad_frame(frame_buffer: FrameBuffer) {
     );
 }
 
-// fn draw_macroquad_frame_old(
-//     frame_data: ProcessedTiles,
-//     scroll_data: (u8, u8),
-//     tile_textures: &mut [[Texture2D; 32]; 32],
-//     object_attribute_data: ObjectAttributeData,
-//     bg_pallete: PaletteData,
-// ) {
-//     let color_map: [Vec<u8>; 4] = [
-//         vec![0x9a, 0x9e, 0x3f, 0xFF],
-//         vec![0x49, 0x6b, 0x22, 0xFF],
-//         vec![0x0e, 0x45, 0x0b, 0xFF],
-//         vec![0x1b, 0x2a, 0x09, 0xFF],
-//     ];
+// TODO: GB technically not exactly 60 fps but this works for now
+fn limit_60_fps(instant_time: Instant) -> Instant {
+    std::thread::sleep(
+        std::time::Duration::from_secs_f64(1. / 60.).saturating_sub(instant_time.elapsed()),
+    );
 
-//     let object_color_map: [Vec<u8>; 4] = [
-//         vec![0x00, 0x00, 0x00, 0x00],
-//         vec![0x49, 0x6b, 0x22, 0xFF],
-//         vec![0x0e, 0x45, 0x0b, 0xFF],
-//         vec![0x1b, 0x2a, 0x09, 0xFF],
-//     ];
-
-//     let (scroll_y, scroll_x) = scroll_data;
-
-//     // println!("Palette: {:?}", bg_pallete);
-
-//     // Draw Background
-//     for row in 0..32 {
-//         for col in 0..32 {
-//             let tile: ProcessedTile = frame_data[row][col];
-
-//             let mut color_bytes: Vec<u8> = Vec::with_capacity(8 * 8 * 4);
-
-//             for pixel_row in tile {
-//                 for pixel in pixel_row {
-//                     color_bytes.extend_from_slice(&color_map[bg_pallete.get_color(pixel) as usize]);
-//                 }
-//             }
-
-//             tile_textures[row][col].update_from_bytes(8, 8, &color_bytes);
-
-//             let row_pos = (row as u8 * 8).wrapping_sub(scroll_y) / 8;
-//             let col_pos = (col as u8 * 8).wrapping_sub(scroll_x) / 8;
-
-//             draw_texture_ex(
-//                 &tile_textures[row][col],
-//                 col_pos as f32 * 32.,
-//                 row_pos as f32 * 32.,
-//                 WHITE,
-//                 DrawTextureParams {
-//                     dest_size: Some(vec2(32., 32.)),
-//                     ..Default::default()
-//                 },
-//             );
-//         }
-//     }
-
-//     // Draw Objects
-
-//     for (object_attribute, tile, tile2) in object_attribute_data.iter() {
-//         let y = object_attribute.y;
-//         let x = object_attribute.x;
-
-//         if y == 0 || x == 0 || y >= 160 || x >= 168 {
-//             continue;
-//         }
-
-//         let mut color_bytes: Vec<u8> = Vec::with_capacity(8 * 8 * 4);
-
-//         for pixel_row in tile {
-//             for pixel in pixel_row {
-//                 color_bytes.extend_from_slice(&object_color_map[*pixel as usize]);
-//             }
-//         }
-
-//         let tile_texture = Texture2D::from_rgba8(8, 8, &color_bytes);
-
-//         let y_pos: f32 = (y as f32 * 4.0) - (16. * 4.);
-//         let x_pos: f32 = (x as f32 * 4.0) - (8. * 4.);
-
-//         draw_texture_ex(
-//             &tile_texture,
-//             x_pos,
-//             y_pos,
-//             WHITE,
-//             DrawTextureParams {
-//                 dest_size: Some(vec2(32., 32.)),
-//                 ..Default::default()
-//             },
-//         );
-//     }
-// }
+    Instant::now()
+}

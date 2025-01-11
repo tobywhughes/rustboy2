@@ -7,9 +7,6 @@ pub type ScanlineObjectBuffer = [u8; 10];
 pub type ScanlineBuffer = [u8; 160];
 pub type FrameBuffer = [ScanlineBuffer; 144];
 
-// let bg_tile_map = io.vram.get_tile_map_2d(io.lcd.bg_tile_map_area());
-// let bg_palette = io.lcd.get_palette_data();
-
 pub struct BGState {
     bg_window_tile_data_area: u16,
     bg_palette: PaletteData,
