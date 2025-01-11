@@ -1,4 +1,12 @@
-use super::interrupts;
+use super::interrupts::{self, Interrupt};
+
+pub enum ScanLineEvent {
+    OAMScanEntered,
+    PixelTransferEntered,
+    HBlankEntered,
+    VBlankEntered,
+    None,
+}
 
 #[derive(Debug)]
 pub struct PaletteData {
@@ -18,14 +26,38 @@ impl PaletteData {
             _ => panic!("Invalid color: {}", color),
         }
     }
+
+    pub fn get_object_color(&self, color: u8) -> u8 {
+        match color {
+            0 => 4,
+            1 => self.color_1,
+            2 => self.color_2,
+            3 => self.color_3,
+            _ => panic!("Invalid color: {}", color),
+        }
+    }
+
+    pub fn from_u8(byte: u8) -> PaletteData {
+        let color_0 = byte & 0x03;
+        let color_1 = (byte & 0x0C) >> 2;
+        let color_2 = (byte & 0x30) >> 4;
+        let color_3 = (byte & 0xC0) >> 6;
+
+        PaletteData {
+            color_0,
+            color_1,
+            color_2,
+            color_3,
+        }
+    }
 }
 
 pub struct LCD {
-    pub lcd_control: u8,  // 0xFF40
-    pub lcd_status: u8,   // 0xFF41
-    scroll_y: u8,         // 0xFF42
-    scroll_x: u8,         // 0xFF43
-    lcd_y_coordinate: u8, // 0xFF44
+    pub lcd_control: u8,      // 0xFF40
+    pub lcd_status: u8,       // 0xFF41
+    scroll_y: u8,             // 0xFF42
+    scroll_x: u8,             // 0xFF43
+    pub lcd_y_coordinate: u8, // 0xFF44
     lcd_y_cycles: u16,
     ly_compare: u8,    // 0xFF45
     bg_palette: u8,    // 0xFF47
@@ -64,8 +96,8 @@ impl LCD {
             0xFF47 => self.bg_palette,
             0xFF48 => self.obj_palette_0,
             0xFF49 => self.obj_palette_1,
-            0xFF4A => self.window_x,
-            0xFF4B => self.window_y,
+            0xFF4A => self.window_y,
+            0xFF4B => self.window_x,
             _ => panic!("Invalid LCD Read address: 0x{:04X}", address),
         }
     }
@@ -81,10 +113,18 @@ impl LCD {
             0xFF47 => self.bg_palette = value,
             0xFF48 => self.obj_palette_0 = value,
             0xFF49 => self.obj_palette_1 = value,
-            0xFF4A => self.window_x = value,
-            0xFF4B => self.window_y = value,
+            0xFF4A => self.window_y = value,
+            0xFF4B => self.window_x = value,
             _ => panic!("Invalid LCD Write address: 0x{:04X}", address),
         }
+    }
+
+    pub fn is_lcd_enabled(&self) -> bool {
+        self.lcd_control & 0x80 != 0
+    }
+
+    pub fn is_background_enabled(&self) -> bool {
+        self.lcd_control & 0x01 != 0
     }
 
     pub fn window_tile_map_area(&self) -> u16 {
@@ -95,7 +135,7 @@ impl LCD {
         }
     }
 
-    pub fn window_enabled(&self) -> bool {
+    pub fn is_window_enabled(&self) -> bool {
         self.lcd_control & 0x20 != 0
     }
 
@@ -116,6 +156,22 @@ impl LCD {
         }
     }
 
+    pub fn object_height(&self) -> u8 {
+        if self.lcd_control & 0x04 == 0 {
+            8
+        } else {
+            16
+        }
+    }
+
+    pub fn is_8_height(&self) -> bool {
+        self.lcd_control & 0x04 == 0
+    }
+
+    pub fn is_object_enabled(&self) -> bool {
+        self.lcd_control & 0x02 != 0
+    }
+
     pub fn get_scroll_data(&self) -> (u8, u8) {
         (self.scroll_y, self.scroll_x)
     }
@@ -124,46 +180,84 @@ impl LCD {
         (self.window_y, self.window_x)
     }
 
-    pub fn update_ly(&mut self, cycles: u8, interrupt: &mut interrupts::Interrupt) {
-        self.lcd_y_cycles += cycles as u16;
+    fn set_mode_2(&mut self) {
+        self.lcd_status &= 0xFC;
+        self.lcd_status |= 0x02;
+    }
 
-        if self.lcd_y_coordinate < 144 {
-            if self.lcd_y_cycles < 80 {
-                // Mode 2
-                self.lcd_status &= 0xFC;
-                self.lcd_status |= 0x02;
+    fn set_mode_3(&mut self) {
+        self.lcd_status &= 0xFC;
+        self.lcd_status |= 0x03;
+    }
 
-                if self.lcd_status & 0x20 != 0 {
-                    interrupt.set_lcd_interrupt();
-                }
-            } else if self.lcd_y_cycles < 252 {
+    fn set_mode_0(&mut self) {
+        self.lcd_status &= 0xFC;
+    }
+
+    fn mode_2_lcd_interrupt(&self, interrupt: &mut Interrupt) -> () {
+        if self.lcd_status & 0x20 != 0 {
+            interrupt.set_lcd_interrupt();
+        }
+    }
+
+    fn mode_0_lcd_interrupt(&self, interrupt: &mut Interrupt) -> () {
+        if self.lcd_status & 0x08 != 0 {
+            interrupt.set_lcd_interrupt();
+        }
+    }
+
+    fn is_before_vblank(&self) -> bool {
+        self.lcd_y_coordinate < 144
+    }
+
+    fn enters_mode_3(&self, previous_cycles: u16) -> bool {
+        self.lcd_y_cycles < 252 && previous_cycles < 80
+    }
+
+    fn enters_mode_0(&self, previous_cycles: u16) -> bool {
+        self.lcd_y_cycles >= 252 && previous_cycles < 252
+    }
+
+    fn scanline_complete(&self) -> bool {
+        self.lcd_y_cycles >= 456
+    }
+
+    fn handle_ly_eq_ly_compare(&mut self, interrupt: &mut Interrupt) {
+        if self.lcd_y_coordinate == self.ly_compare {
+            self.lcd_status |= 0x04;
+
+            if self.lcd_status & 0x40 != 0 {
+                interrupt.set_lcd_interrupt();
+            }
+        } else {
+            self.lcd_status &= 0xFB;
+        }
+    }
+
+    pub fn update_ly(&mut self, cycles: u8, interrupt: &mut Interrupt) -> ScanLineEvent {
+        let mut scanline_event = ScanLineEvent::None;
+
+        let previous_cycles = self.lcd_y_cycles;
+        self.lcd_y_cycles += cycles as u16 * 4; // T cycles?
+
+        if self.is_before_vblank() {
+            if self.enters_mode_3(previous_cycles) {
                 // Mode 3
-                self.lcd_status &= 0xFC;
-                self.lcd_status |= 0x03;
-            } else {
+                self.set_mode_3();
+                scanline_event = ScanLineEvent::PixelTransferEntered;
+            } else if self.enters_mode_0(previous_cycles) {
                 // Mode 0
-                self.lcd_status &= 0xFC;
-                self.lcd_status |= 0x00;
-
-                if self.lcd_status & 0x08 != 0 {
-                    interrupt.set_lcd_interrupt();
-                }
+                self.set_mode_0();
+                self.mode_0_lcd_interrupt(interrupt);
+                scanline_event = ScanLineEvent::HBlankEntered;
             }
         }
 
-        if self.lcd_y_cycles >= 456 {
-            self.lcd_y_cycles -= 456;
+        if self.scanline_complete() {
             self.lcd_y_coordinate += 1;
+            self.lcd_y_cycles -= 456;
 
-            if self.lcd_y_coordinate == self.ly_compare {
-                self.lcd_status |= 0x04;
-
-                if self.lcd_status & 0x40 != 0 {
-                    interrupt.set_lcd_interrupt();
-                }
-            } else {
-                self.lcd_status &= 0xFB;
-            }
+            self.handle_ly_eq_ly_compare(interrupt);
 
             if self.lcd_y_coordinate == 144 {
                 self.lcd_status |= 0x01; // Set the VBlank flag
@@ -171,25 +265,34 @@ impl LCD {
                 if self.lcd_status & 0x10 != 0 {
                     interrupt.set_lcd_interrupt();
                 }
+                scanline_event = ScanLineEvent::VBlankEntered;
             } else if self.lcd_y_coordinate > 153 {
                 self.lcd_y_coordinate = 0;
                 self.lcd_status &= 0xFE; // Clear the VBlank flag
                 interrupt.disable_vblank_interrupt();
+
+                self.set_mode_2();
+                self.mode_2_lcd_interrupt(interrupt);
+                scanline_event = ScanLineEvent::OAMScanEntered;
+            } else if self.lcd_y_coordinate < 144 {
+                self.set_mode_2();
+                self.mode_2_lcd_interrupt(interrupt);
+                scanline_event = ScanLineEvent::OAMScanEntered;
             }
         }
+
+        scanline_event
     }
 
     pub fn get_palette_data(&self) -> PaletteData {
-        let color_0 = self.bg_palette & 0x03;
-        let color_1 = (self.bg_palette & 0x0C) >> 2;
-        let color_2 = (self.bg_palette & 0x30) >> 4;
-        let color_3 = (self.bg_palette & 0xC0) >> 6;
+        PaletteData::from_u8(self.bg_palette)
+    }
 
-        PaletteData {
-            color_0,
-            color_1,
-            color_2,
-            color_3,
-        }
+    pub fn get_object_palette_0_data(&self) -> PaletteData {
+        PaletteData::from_u8(self.obj_palette_0)
+    }
+
+    pub fn get_object_palette_1_data(&self) -> PaletteData {
+        PaletteData::from_u8(self.obj_palette_1)
     }
 }

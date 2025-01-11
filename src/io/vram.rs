@@ -1,3 +1,5 @@
+pub type Tile = [u8; 16];
+
 pub struct VRam {
     data: [[u8; 0x2000]; 2],
     vram_bank: u8, // FF4F
@@ -40,7 +42,22 @@ impl VRam {
         tile_map
     }
 
-    pub fn get_tile(&self, offset: u16, tile_index: u8) -> [u8; 16] {
+    pub fn get_tile_map_2d(&self, address: u16) -> [[u8; 32]; 32] {
+        let mapped_address = (address - 0x8000) as usize;
+
+        let mut tile_map = [[0; 32]; 32];
+
+        for row_index in 0..32 {
+            for col_index in 0..32 {
+                tile_map[row_index][col_index] = self.data[self.vram_bank as usize]
+                    [mapped_address + (row_index * 32) + col_index]
+            }
+        }
+
+        tile_map
+    }
+
+    pub fn get_tile(&self, offset: u16, tile_index: u8) -> Tile {
         let tile_address: usize = match tile_index {
             0..=127 => ((offset - 0x8000) + ((tile_index as u16) * 16)) as usize,
             128..=255 => (tile_index as usize) * 16,
@@ -73,5 +90,15 @@ impl VRam {
         }
 
         processed_tile
+    }
+
+    pub fn get_tile_pixel(&self, tile: [u8; 16], x_offset: usize, y_offset: usize) -> u8 {
+        let low_byte = tile[y_offset * 2];
+        let high_byte = tile[(y_offset * 2) + 1];
+
+        let low_bit = (low_byte >> (7 - x_offset)) & 0x1;
+        let high_bit = (high_byte >> (7 - x_offset)) & 0x1;
+
+        (high_bit << 1) | low_bit
     }
 }

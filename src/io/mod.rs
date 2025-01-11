@@ -7,4 +7,4 @@ pub mod oam;
 mod serial;
 mod sound;
 mod timer;
-mod vram;
+pub mod vram;

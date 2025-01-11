@@ -8,6 +8,28 @@ pub struct ObjectAttribute {
     pub flags: u8,
 }
 
+impl ObjectAttribute {
+    pub fn is_in_scanline(&self, scanline: u8, object_height: u8) -> bool {
+        (scanline + 16) >= self.y && (scanline + 16) < (self.y + object_height)
+    }
+
+    pub fn is_obj_palette_0(&self) -> bool {
+        (self.flags & 0x10) == 0
+    }
+
+    pub fn is_h_flip(&self) -> bool {
+        (self.flags & 0x20) != 0
+    }
+
+    pub fn is_v_flip(&self) -> bool {
+        (self.flags & 0x40) != 0
+    }
+
+    pub fn is_bg_priority(&self) -> bool {
+        (self.flags & 0x80) != 0
+    }
+}
+
 pub struct ObjectAttributeMemory {
     pub oam: [u8; 0xA0],
     pub dma: u8,

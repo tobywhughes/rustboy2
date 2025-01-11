@@ -1,6 +1,11 @@
 use crate::{
-    cartridge::cartridge::Cartridge, hram::HRam, io::io::IO, memory::MemoryLocation,
-    opcode::opcode::execute_opcode, wram::WRam,
+    cartridge::cartridge::Cartridge,
+    hram::HRam,
+    io::{io::IO, lcd::ScanLineEvent},
+    memory::MemoryLocation,
+    opcode::opcode::execute_opcode,
+    ppu::PPU,
+    wram::WRam,
 };
 
 use super::cpu::CPU;
@@ -14,6 +19,7 @@ pub struct Bus {
     pub io: IO,
     hram: HRam,
     render_cycles: u32,
+    pub ppu: PPU,
 }
 
 impl Bus {
@@ -25,6 +31,7 @@ impl Bus {
             hram: HRam::default(),
             io: IO::default(),
             render_cycles: 0,
+            ppu: PPU::new(),
         }
     }
 
@@ -146,19 +153,35 @@ impl Bus {
 
         self.render_cycles += self.cpu.cycle_buffer as u32;
 
-        self.io
+        let scanline_event: ScanLineEvent = self
+            .io
             .lcd
             .update_ly(self.cpu.cycle_buffer, &mut self.io.interrupt);
+
+        let mut should_render = false;
+
+        match scanline_event {
+            ScanLineEvent::OAMScanEntered => {
+                // Build line object buffer
+                self.ppu.update_scanline_object_id_buffer(&self.io);
+            }
+            ScanLineEvent::HBlankEntered => {
+                // Build scanline
+                self.ppu.update_current_scanline_in_frame_buffer(&self.io);
+            }
+            ScanLineEvent::VBlankEntered => {
+                // Render screen
+                should_render = true;
+                self.ppu.window_internal_line_counter = 0;
+            }
+            _ => {}
+        }
+
         self.io
             .timer
             .update_timer(&mut self.cpu.cycle_buffer, &mut self.io.interrupt);
 
-        if self.render_cycles > 69905 {
-            self.render_cycles -= 69905;
-            true
-        } else {
-            false
-        }
+        should_render
     }
 
     pub fn push_u16_to_stack(&mut self, value: u16) {
