@@ -21,3 +21,11 @@ No sound support yet. The developer requests you play the sounds in your head fo
 Two largest goals right now are sound support (APU) and supporting more cartridge types and functionality. With these two finished, the emulator will be more or less completely functional.
 
 Long term focus will be on increased cycle accuracy, passing more test roms, and maybe eventually CGB support.
+
+## Running the emulator
+
+This project is still in development so no releases are provided.
+
+If you have rust installed, you can build it yourself if you want.
+
+Roms can be run by passing the filepath as a command line argument (e.g. `cargo run -- '.\some_rom.gb'`)
