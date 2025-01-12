@@ -24,6 +24,9 @@ impl From<CartridgeType> for CartridgeChipType {
             CartridgeType::MBC1 | CartridgeType::MBC1_RAM | CartridgeType::MBC1_RAM_BATTERY => {
                 CartridgeChipType::MBC1
             }
+            CartridgeType::MBC3 | CartridgeType::MBC3_RAM | CartridgeType::MBC3_RAM_BATTERY => {
+                CartridgeChipType::MBC3
+            }
             _ => CartridgeChipType::Unknown,
         }
     }
@@ -35,6 +38,18 @@ pub enum CartridgeType {
     MBC1 = 0x01,
     MBC1_RAM = 0x02,
     MBC1_RAM_BATTERY = 0x03,
+    MBC2 = 0x05,
+    MBC2_BATTERY = 0x06,
+    ROM_RAM = 0x08,
+    ROM_RAM_BATTERY = 0x09,
+    MMM01 = 0x0B,
+    MMM01_RAM = 0x0C,
+    MMM01_RAM_BATTERY = 0x0D,
+    MBC3_TIMER_BATTERY = 0x0F,
+    MBC3_TIMER_RAM_BATTERY = 0x10,
+    MBC3 = 0x11,
+    MBC3_RAM = 0x12,
+    MBC3_RAM_BATTERY = 0x13,
 }
 
 impl From<u8> for CartridgeType {
@@ -44,6 +59,18 @@ impl From<u8> for CartridgeType {
             0x01 => CartridgeType::MBC1,
             0x02 => CartridgeType::MBC1_RAM,
             0x03 => CartridgeType::MBC1_RAM_BATTERY,
+            0x05 => CartridgeType::MBC2,
+            0x06 => CartridgeType::MBC2_BATTERY,
+            0x08 => CartridgeType::ROM_RAM,
+            0x09 => CartridgeType::ROM_RAM_BATTERY,
+            0x0B => CartridgeType::MMM01,
+            0x0C => CartridgeType::MMM01_RAM,
+            0x0D => CartridgeType::MMM01_RAM_BATTERY,
+            0x0F => CartridgeType::MBC3_TIMER_BATTERY,
+            0x10 => CartridgeType::MBC3_TIMER_RAM_BATTERY,
+            0x11 => CartridgeType::MBC3,
+            0x12 => CartridgeType::MBC3_RAM,
+            0x13 => CartridgeType::MBC3_RAM_BATTERY,
             _ => panic!("Invalid Cartridge Type: 0x{:02X}", value),
         }
     }
@@ -91,6 +118,8 @@ impl RomSize {
             RomSize::KB128 => 0x07,
             RomSize::KB256 => 0x0F,
             RomSize::KB512 => 0x1F,
+            RomSize::MB1 => 0x3F,
+            RomSize::MB2 => 0x7F,
             _ => panic!("Unimplemented ROM Banking"),
         }
     }
