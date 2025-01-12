@@ -2,15 +2,48 @@
 
 use byteorder::{BigEndian, ByteOrder};
 
-enum CartridgeType {
+#[derive(Debug)]
+pub enum CartridgeChipType {
+    ROMOnly,
+    MBC1,
+    MBC2,
+    MBC3,
+    MBC5,
+    MBC6,
+    MBC7,
+    MMM01,
+    HuC1,
+    HuC3,
+    Unknown,
+}
+
+impl From<CartridgeType> for CartridgeChipType {
+    fn from(value: CartridgeType) -> Self {
+        match value {
+            CartridgeType::ROM => CartridgeChipType::ROMOnly,
+            CartridgeType::MBC1 | CartridgeType::MBC1_RAM | CartridgeType::MBC1_RAM_BATTERY => {
+                CartridgeChipType::MBC1
+            }
+            _ => CartridgeChipType::Unknown,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub enum CartridgeType {
     ROM = 0x00,
     MBC1 = 0x01,
+    MBC1_RAM = 0x02,
+    MBC1_RAM_BATTERY = 0x03,
 }
+
 impl From<u8> for CartridgeType {
     fn from(value: u8) -> Self {
         match value {
             0x00 => CartridgeType::ROM,
             0x01 => CartridgeType::MBC1,
+            0x02 => CartridgeType::MBC1_RAM,
+            0x03 => CartridgeType::MBC1_RAM_BATTERY,
             _ => panic!("Invalid Cartridge Type: 0x{:02X}", value),
         }
     }
@@ -88,7 +121,7 @@ pub struct CartridgeHeader {
     title: Vec<u8>,
     cgb_flag: u8,
     sgb_flag: u8,
-    cartridge_type: CartridgeType,
+    pub cartridge_type: CartridgeType,
     rom_size: RomSize,
     ram_size: RamSize,
 }

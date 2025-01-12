@@ -55,7 +55,9 @@ impl Bus {
     pub fn read_u8(&self, address: u16) -> u8 {
         let memory_location = MemoryLocation::parse_address(address);
         let u8_value = match memory_location {
-            MemoryLocation::Bank0 | MemoryLocation::BankN => self.cartridge.read_u8(address),
+            MemoryLocation::Bank0 | MemoryLocation::BankN | MemoryLocation::ExternalRam => {
+                self.cartridge.read_u8(address)
+            }
             MemoryLocation::WorkRamBank0
             | MemoryLocation::WorkRamBankN
             | MemoryLocation::EchoRam => self.wram.read_u8(address),
@@ -73,7 +75,7 @@ impl Bus {
     pub fn write_u8(&mut self, address: u16, value: u8) {
         let memory_location = MemoryLocation::parse_address(address);
         match memory_location {
-            MemoryLocation::Bank0 | MemoryLocation::BankN => {
+            MemoryLocation::Bank0 | MemoryLocation::BankN | MemoryLocation::ExternalRam => {
                 self.cartridge.write_u8(address, value)
             }
             MemoryLocation::WorkRamBank0

@@ -233,7 +233,7 @@ impl PPU {
 
     fn render_window_pixel(&mut self, io: &IO, window_scroll_x: u8, pixel_index: u8) {
         // Pixel outside of window
-        if (pixel_index < (window_scroll_x - 7)) || window_scroll_x > 166 {
+        if (pixel_index + 7 < (window_scroll_x)) || window_scroll_x > 166 {
             return;
         }
 
@@ -269,8 +269,12 @@ impl PPU {
 
         let (object_tile_lower, object_tile_higher) = self.get_object_tiles(io, object_attribute);
 
-        let y_pixel = (self.current_scanline - (object_attribute.y - 16))
+        let y_pixel = (self.current_scanline as i16 - (object_attribute.y as i16 - 16))
             % (if self.oam_state.is_8_height { 8 } else { 16 });
+
+        if y_pixel < 0 {
+            return;
+        }
 
         for pixel_index in 0..8 {
             let in_window = self.render_object_pixel(
@@ -279,7 +283,7 @@ impl PPU {
                 object_tile_lower,
                 object_tile_higher,
                 pixel_index,
-                y_pixel,
+                y_pixel as u8,
             );
 
             if !in_window {
@@ -297,7 +301,11 @@ impl PPU {
         pixel_index: u8,
         y_pixel: u8,
     ) -> bool {
-        let current_pixel_offset = object_attribute.x - 8 + pixel_index;
+        let current_pixel_offset = object_attribute.x as i16 - 8 + pixel_index as i16;
+
+        if current_pixel_offset < 0 {
+            return true; // Continue rendering, but this pixel is outside of screen
+        }
 
         // Do not render pixel if outside of screen
         // Differs from render_object check because some objects can be partially in frame
